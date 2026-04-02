@@ -1,0 +1,75 @@
+{
+  "name": "claude-profile-switcher",
+  "displayName": "Claude Profile Switcher",
+  "description": "Switch between Claude Code configuration profiles with visual indicators",
+  "version": "0.1.0",
+  "publisher": "sairambkrishnan",
+  "engines": {
+    "vscode": "^1.94.0"
+  },
+  "categories": ["Other"],
+  "keywords": ["claude", "profile", "switcher", "configuration"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./src/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "claudeProfileSwitcher.switchProfile",
+        "title": "Claude: Switch Profile"
+      }
+    ],
+    "configuration": {
+      "title": "Claude Profile Switcher",
+      "properties": {
+        "claudeProfileSwitcher.profiles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Display name for this profile"
+              },
+              "configDir": {
+                "type": "string",
+                "description": "Absolute path to the Claude config directory (~ is expanded)"
+              },
+              "titleBarColor": {
+                "type": "string",
+                "description": "Hex color for the title bar background when this profile is active"
+              },
+              "titleBarForeground": {
+                "type": "string",
+                "description": "Hex color for the title bar text when this profile is active"
+              }
+            },
+            "required": ["name", "configDir", "titleBarColor"]
+          },
+          "default": [
+            {
+              "name": "Work",
+              "configDir": "~/.claude-work",
+              "titleBarColor": "#1a3a5c",
+              "titleBarForeground": "#ffffff"
+            },
+            {
+              "name": "Personal",
+              "configDir": "~/.claude-personal",
+              "titleBarColor": "#1a5c3a",
+              "titleBarForeground": "#ffffff"
+            }
+          ],
+          "description": "List of Claude Code profiles to switch between"
+        },
+        "claudeProfileSwitcher.symlinkPath": {
+          "type": "string",
+          "default": "~/.claude",
+          "description": "Path to the Claude symlink that gets repointed on switch"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "package": "npx @vscode/vsce package --no-dependencies"
+  }
+}
