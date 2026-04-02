@@ -18,11 +18,7 @@ function resolveConfigDir(profile) {
 
 function getProfiles() {
     const config = vscode.workspace.getConfiguration('claudeProfileSwitcher');
-    const raw = config.get('profiles', []);
-    return raw.map(p => ({
-        ...p,
-        titleBarForeground: p.titleBarForeground || '#ffffff',
-    }));
+    return config.get('profiles', []);
 }
 
 function getSymlinkPath() {
@@ -43,13 +39,24 @@ function detectActiveProfile(profiles) {
     }
 }
 
+// ─── Window Title ────────────────────────────────────────────────
+
+async function applyWindowTitle(profile) {
+    const windowConfig = vscode.workspace.getConfiguration('window');
+    const defaultTitle =
+        '${dirty}${activeEditorShort}${separator}${rootName}${separator}${profileName}${separator}${appName}';
+    const currentTitle = windowConfig.get('title') || defaultTitle;
+    const stripped = currentTitle.replace(/^\[.*?\]\s*/, '');
+    const newTitle = `[${profile.name}] ${stripped}`;
+    await windowConfig.update('title', newTitle, vscode.ConfigurationTarget.Global);
+}
+
 // ─── Switching Logic ─────────────────────────────────────────────
 
 async function switchToProfile(profile) {
     const symlinkPath = getSymlinkPath();
     const configDir = resolveConfigDir(profile);
 
-    // Validate config directory exists
     if (!fs.existsSync(configDir)) {
         vscode.window.showErrorMessage(
             `Claude profile directory does not exist: ${configDir}`
@@ -83,33 +90,10 @@ async function switchToProfile(profile) {
         vscode.ConfigurationTarget.Global
     );
 
-    // 3. Update title bar colors
-    const workbenchConfig = vscode.workspace.getConfiguration('workbench');
-    const currentColors = workbenchConfig.get('colorCustomizations') || {};
-    await workbenchConfig.update(
-        'colorCustomizations',
-        {
-            ...currentColors,
-            'titleBar.activeBackground': profile.titleBarColor,
-            'titleBar.activeForeground': profile.titleBarForeground,
-        },
-        vscode.ConfigurationTarget.Global
-    );
+    // 3. Update window title
+    await applyWindowTitle(profile);
 
-    // 4. Update window title with profile name prefix
-    const windowConfig = vscode.workspace.getConfiguration('window');
-    const defaultTitle =
-        '${dirty}${activeEditorShort}${separator}${rootName}${separator}${profileName}${separator}${appName}';
-    const currentTitle = windowConfig.get('title') || defaultTitle;
-    const stripped = currentTitle.replace(/^\[.*?\]\s*/, '');
-    const newTitle = `[${profile.name}] ${stripped}`;
-    await windowConfig.update(
-        'title',
-        newTitle,
-        vscode.ConfigurationTarget.Global
-    );
-
-    // 5. Reload the VS Code window (small delay to flush settings)
+    // 4. Reload the VS Code window (small delay to flush settings)
     setTimeout(() => {
         vscode.commands.executeCommand('workbench.action.reloadWindow');
     }, 300);
@@ -137,7 +121,6 @@ function updateStatusBar(profile) {
 // ─── Activation ──────────────────────────────────────────────────
 
 function activate(context) {
-    // Create status bar item
     statusBarItem = vscode.window.createStatusBarItem(
         vscode.StatusBarAlignment.Left,
         100
@@ -145,11 +128,15 @@ function activate(context) {
     statusBarItem.command = 'claudeProfileSwitcher.switchProfile';
     context.subscriptions.push(statusBarItem);
 
-    // Detect and display current profile
+    // Detect current profile, update status bar AND window title
     const profiles = getProfiles();
     const active = detectActiveProfile(profiles);
     updateStatusBar(active);
     statusBarItem.show();
+
+    if (active) {
+        applyWindowTitle(active);
+    }
 
     // Register the switch command
     const switchCommand = vscode.commands.registerCommand(

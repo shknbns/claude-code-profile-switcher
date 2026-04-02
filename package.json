@@ -33,30 +33,18 @@
               "configDir": {
                 "type": "string",
                 "description": "Absolute path to the Claude config directory (~ is expanded)"
-              },
-              "titleBarColor": {
-                "type": "string",
-                "description": "Hex color for the title bar background when this profile is active"
-              },
-              "titleBarForeground": {
-                "type": "string",
-                "description": "Hex color for the title bar text when this profile is active"
               }
             },
-            "required": ["name", "configDir", "titleBarColor"]
+            "required": ["name", "configDir"]
           },
           "default": [
             {
               "name": "Work",
-              "configDir": "~/.claude-work",
-              "titleBarColor": "#1a3a5c",
-              "titleBarForeground": "#ffffff"
+              "configDir": "~/.claude-work"
             },
             {
               "name": "Personal",
-              "configDir": "~/.claude-personal",
-              "titleBarColor": "#1a5c3a",
-              "titleBarForeground": "#ffffff"
+              "configDir": "~/.claude-personal"
             }
           ],
           "description": "List of Claude Code profiles to switch between"
