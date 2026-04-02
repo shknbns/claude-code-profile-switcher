@@ -1,12 +1,13 @@
 {
-  "name": "claude-profile-switcher",
-  "displayName": "Claude Profile Switcher",
+  "name": "claude-code-profile-switcher",
+  "displayName": "Claude Code Profile Switcher",
   "description": "Switch between Claude Code configuration profiles with visual indicators",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "publisher": "sairambkrishnan",
   "engines": {
     "vscode": "^1.94.0"
   },
+  "icon": "icon.png",
   "categories": ["Other"],
   "keywords": ["claude", "profile", "switcher", "configuration"],
   "activationEvents": ["onStartupFinished"],

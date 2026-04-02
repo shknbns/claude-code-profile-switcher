@@ -174,7 +174,7 @@ async function createProfile() {
 
 // ─── Shell Aliases ───────────────────────────────────────────────
 
-const SHELL_ALIAS_MARKER = '# === Claude Profile Switcher ===';
+const SHELL_ALIAS_MARKER = '# === Claude Code Profile Switcher ===';
 
 async function injectShellAliases(profiles) {
     const shell = process.env.SHELL || '/bin/zsh';
