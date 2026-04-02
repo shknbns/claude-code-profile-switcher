@@ -16,6 +16,10 @@
       {
         "command": "claudeProfileSwitcher.switchProfile",
         "title": "Claude: Switch Profile"
+      },
+      {
+        "command": "claudeProfileSwitcher.setupProfiles",
+        "title": "Claude: Setup Profiles"
       }
     ],
     "configuration": {
