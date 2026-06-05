@@ -26,108 +26,14 @@ function getSymlinkPath() {
     return expandTilde(config.get('symlinkPath', '~/.claude'));
 }
 
-// ─── Platform Utilities ──────────────────────────────────────────
-
-// terminal.integrated.env has separate keys per OS; the original code hardcoded
-// 'osx', so CLAUDE_CONFIG_DIR was never injected on Linux or WSL.
-function getPlatformEnvKey() {
-    if (process.platform === 'win32') return 'windows';
-    if (process.platform === 'darwin') return 'osx';
-    return 'linux';
-}
-
-// Windows paths are case-insensitive
-function pathsEqual(a, b) {
-    if (process.platform === 'win32') {
-        return a.toLowerCase() === b.toLowerCase();
-    }
-    return a === b;
-}
-
-// Windows junctions prefix the target with \??\
-function readLinkTarget(linkPath) {
-    let target = fs.readlinkSync(linkPath);
-    if (process.platform === 'win32' && target.startsWith('\\??\\')) {
-        target = target.slice(4);
-    }
-    return target;
-}
-
-// fs.unlinkSync throws EPERM on Windows junctions; fs.rmSync handles both
-function removeLink(p) {
-    try {
-        if (process.platform === 'win32') {
-            fs.rmSync(p, { force: true });
-        } else {
-            fs.unlinkSync(p);
-        }
-    } catch {
-        // doesn't exist — fine
-    }
-}
-
-// Windows requires 'junction' type for directory symlinks; no elevation needed
-function createLink(target, linkPath) {
-    const type = process.platform === 'win32' ? 'junction' : undefined;
-    fs.symlinkSync(target, linkPath, type);
-}
-
-// ─── Environment Checks ──────────────────────────────────────────
-
-function isClaudeInstalled() {
-    try {
-        const { execSync } = require('child_process');
-        const cmd = process.platform === 'win32' ? 'where claude' : 'which claude';
-        execSync(cmd, { stdio: 'ignore' });
-        return true;
-    } catch {
-        return false;
-    }
-}
-
-// Probe by actually creating a junction/symlink rather than checking settings or
-// registry — capability depends on filesystem, not just OS version or policy.
-async function testLinkCapability() {
-    const testTarget = path.join(os.tmpdir(), `cc-ps-target-${Date.now()}`);
-    const testLink = path.join(os.tmpdir(), `cc-ps-link-${Date.now()}`);
-    try {
-        fs.mkdirSync(testTarget);
-        createLink(testTarget, testLink);
-        removeLink(testLink);
-        fs.rmdirSync(testTarget);
-        return true;
-    } catch {
-        try { removeLink(testLink); } catch {}
-        try { fs.rmdirSync(testTarget); } catch {}
-        return false;
-    }
-}
-
-async function checkEnvironment() {
-    const warnings = [];
-
-    if (!isClaudeInstalled()) {
-        warnings.push('Claude Code CLI not found in PATH. Install it from https://claude.ai/download');
-    }
-
-    if (!(await testLinkCapability())) {
-        const msg = process.platform === 'win32'
-            ? 'Cannot create directory junctions. Enable Developer Mode (Windows Settings → System → For developers) or run VS Code as Administrator.'
-            : 'Cannot create symlinks. Check that your home directory filesystem supports them.';
-        warnings.push(msg);
-    }
-
-    return warnings;
-}
-
 // ─── Detection ───────────────────────────────────────────────────
 
 function detectActiveProfile(profiles) {
     const symlinkPath = getSymlinkPath();
     try {
-        const target = readLinkTarget(symlinkPath);
+        const target = fs.readlinkSync(symlinkPath);
         const resolvedTarget = path.resolve(path.dirname(symlinkPath), target);
-        return profiles.find(p => pathsEqual(resolveConfigDir(p), resolvedTarget));
+        return profiles.find(p => resolveConfigDir(p) === resolvedTarget);
     } catch {
         return undefined;
     }
@@ -158,10 +64,14 @@ async function switchToProfile(profile) {
         return;
     }
 
-    // 1. Recreate the symlink/junction
+    // 1. Recreate the symlink
     try {
-        removeLink(symlinkPath);
-        createLink(configDir, symlinkPath);
+        try {
+            fs.unlinkSync(symlinkPath);
+        } catch {
+            // Doesn't exist yet — fine
+        }
+        fs.symlinkSync(configDir, symlinkPath);
     } catch (err) {
         vscode.window.showErrorMessage(
             `Failed to create symlink: ${err.message}`
@@ -169,13 +79,14 @@ async function switchToProfile(profile) {
         return;
     }
 
-    // 2. Set CLAUDE_CONFIG_DIR for integrated terminals (key is OS-specific)
-    const terminalEnvConfig = vscode.workspace.getConfiguration('terminal.integrated.env');
-    const envKey = getPlatformEnvKey();
-    const currentEnv = terminalEnvConfig.get(envKey) || {};
+    // 2. Set CLAUDE_CONFIG_DIR for integrated terminals
+    const terminalEnvConfig = vscode.workspace.getConfiguration(
+        'terminal.integrated.env'
+    );
+    const currentOsx = terminalEnvConfig.get('osx') || {};
     await terminalEnvConfig.update(
-        envKey,
-        { ...currentEnv, CLAUDE_CONFIG_DIR: configDir },
+        'osx',
+        { ...currentOsx, CLAUDE_CONFIG_DIR: configDir },
         vscode.ConfigurationTarget.Global
     );
 
@@ -338,13 +249,13 @@ async function runOnboarding() {
     const allProfiles = [...existingProfiles, ...createdProfiles];
     await config.update('profiles', allProfiles, vscode.ConfigurationTarget.Global);
 
-    // Create symlink/junction to first new profile
+    // Create symlink to first new profile
     const firstProfile = createdProfiles[0];
     const symlinkPath = getSymlinkPath();
     const configDir = resolveConfigDir(firstProfile);
     try {
-        removeLink(symlinkPath);
-        createLink(configDir, symlinkPath);
+        try { fs.unlinkSync(symlinkPath); } catch { /* ok */ }
+        fs.symlinkSync(configDir, symlinkPath);
     } catch (err) {
         vscode.window.showErrorMessage(`Failed to create symlink: ${err.message}`);
     }
@@ -370,12 +281,6 @@ async function activate(context) {
     );
     statusBarItem.command = 'claudeProfileSwitcher.switchProfile';
     context.subscriptions.push(statusBarItem);
-
-    // Check environment requirements before doing anything else
-    const warnings = await checkEnvironment();
-    for (const warning of warnings) {
-        vscode.window.showWarningMessage(`Claude Profile Switcher: ${warning}`);
-    }
 
     // Detect current profile, update status bar AND window title
     const profiles = getProfiles();
